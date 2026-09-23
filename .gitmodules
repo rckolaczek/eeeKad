@@ -9,7 +9,7 @@
 	url = https://github.com/madler/zlib
 [submodule "submodules/curl-impersonate"]
 	path = submodules/curl-impersonate
-	url = https://github.com/lwthiker/curl-impersonate
+	url = https://github.com/lexiforest/curl-impersonate
 [submodule "submodules/boringssl"]
 	path = submodules/boringssl
 	url = https://github.com/google/boringssl
