@@ -26,7 +26,7 @@
 	#include "stringu.h"
 #endif
 
-#define KAD_DEFAULT_IMPERSONATE_TARGET "chrome116"
+#define KAD_DEFAULT_IMPERSONATE_TARGET "chrome136"
 
 static const char KAD_DEFAULT_LISTEN_ADDRESS[] = "127.0.0.1";
 static const int KAD_DEFAULT_LISTEN_PORT = 4000;
@@ -48,7 +48,8 @@ static const char* const IMPERSONATE_HEADERS[] = {
 	"Sec-Fetch-User",
 	"Sec-Fetch-Dest",
 	"Accept-Encoding",
-	"Accept-Language"
+	"Accept-Language",
+	"Priority"
 };
 
 #ifndef KAD_DISABLE_CERTIFICATE_VALIDATION

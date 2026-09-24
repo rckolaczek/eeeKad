@@ -26,6 +26,8 @@ set(CURL_USE_BEARSSL OFF)
 set(CURL_USE_OPENSSL ON)
 set(USE_NGHTTP2 ON)
 set(CURL_BROTLI ON)
+set(CURL_ZSTD ON)
+set(USE_ECH ON)
 set(ENABLE_ARES ON)
 set(CURL_USE_LIBPSL OFF)
 set(CURL_DISABLE_ALTSVC ON)
@@ -64,7 +66,7 @@ if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl/.patched")
 		COMMAND patch
 		--directory=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl
 		--strip=1
-		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/chrome/patches/curl-impersonate.patch
+		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/patches/curl.patch
 		COMMAND_ERROR_IS_FATAL ANY
 	)
 	
@@ -78,7 +80,7 @@ if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/submodules/boringssl/.patched")
 		COMMAND patch
 		--directory=${CMAKE_CURRENT_SOURCE_DIR}/submodules/boringssl
 		--strip=1
-		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/chrome/patches/boringssl-old-ciphers.patch
+		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/patches/boringssl.patch
 		COMMAND_ERROR_IS_FATAL ANY
 	)
 	
@@ -127,6 +129,12 @@ set(BROTLI_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/submodules/brotli/c/include"
 set(BROTLICOMMON_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}brotlicommon${CMAKE_SHARED_LIBRARY_SUFFIX}")
 set(BROTLIDEC_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}brotlidec${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
+set(ZSTD_INCLUDE_DIR
+	"${CMAKE_CURRENT_SOURCE_DIR}/submodules/zstd/lib"
+)
+
+set(ZSTD_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}zstd${CMAKE_SHARED_LIBRARY_SUFFIX}")
+
 set(
 	CARES_INCLUDE_DIR
 	"${CMAKE_CURRENT_SOURCE_DIR}/submodules/c-ares/include"
@@ -145,13 +153,18 @@ add_subdirectory(submodules/curl EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/zlib EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/boringssl EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/nghttp2 EXCLUDE_FROM_ALL)
+set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "")
+set(ZSTD_BUILD_TESTS OFF CACHE BOOL "")
+set(ZSTD_BUILD_SHARED ON CACHE BOOL "")
+set(ZSTD_BUILD_STATIC OFF CACHE BOOL "")
 add_subdirectory(submodules/brotli EXCLUDE_FROM_ALL)
+add_subdirectory(submodules/zstd/build/cmake EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/c-ares EXCLUDE_FROM_ALL)
 
 file(REMOVE "${OPENSSL_SSL_LIBRARY}")
 file(REMOVE "${OPENSSL_CRYPTO_LIBRARY}")
 
-foreach(target zlib crypto ssl nghttp2 brotlidec c-ares)
+foreach(target zlib crypto ssl nghttp2 brotlidec c-ares libzstd_shared)
 	add_custom_command(
 		OUTPUT ${target}
 		COMMAND ${CMAKE_COMMAND} --build ./ --target ${target}
