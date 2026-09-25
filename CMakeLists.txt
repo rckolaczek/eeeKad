@@ -4,7 +4,7 @@ project(
 	Kad
 	VERSION 0.3.0
 	DESCRIPTION "Kad is a simple HTTP proxy server that forwards all requests through curl-impersonate"
-	HOMEPAGE_URL "https://github.com/AmanoTeam/Kad"
+	HOMEPAGE_URL "https://github.com/rckolaczek/eeeKad"
 	LANGUAGES C
 )
 
