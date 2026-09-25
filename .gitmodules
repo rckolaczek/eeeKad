@@ -1,27 +1,40 @@
 [submodule "submodules/curl"]
 	path = submodules/curl
 	url = https://github.com/curl/curl
+	ignore = dirty
 [submodule "submodules/nghttp2"]
 	path = submodules/nghttp2
 	url = https://github.com/nghttp2/nghttp2
+	ignore = dirty
 [submodule "submodules/zlib"]
 	path = submodules/zlib
 	url = https://github.com/madler/zlib
+	ignore = dirty
 [submodule "submodules/curl-impersonate"]
 	path = submodules/curl-impersonate
-	url = https://github.com/lexiforest/curl-impersonate
+	url = https://github.com/lexiforest/curl-impersonate.git
+	ignore = dirty
 [submodule "submodules/boringssl"]
 	path = submodules/boringssl
 	url = https://github.com/google/boringssl
+	ignore = dirty
 [submodule "submodules/bearssl"]
 	path = submodules/bearssl
 	url = https://www.bearssl.org/git/BearSSL
+	ignore = dirty
 [submodule "submodules/brotli"]
 	path = submodules/brotli
 	url = https://github.com/google/brotli
+	ignore = dirty
 [submodule "submodules/cabundle"]
 	path = submodules/cabundle
 	url = https://github.com/AmanoTeam/CABundle
+	ignore = dirty
 [submodule "submodules/c-ares"]
 	path = submodules/c-ares
 	url = https://github.com/c-ares/c-ares
+	ignore = dirty
+[submodule "submodules/zstd"]
+	path = submodules/zstd
+	url = https://github.com/facebook/zstd
+	ignore = dirty

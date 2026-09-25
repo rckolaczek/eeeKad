@@ -1,0 +1,347 @@
+diff --git a/.gitmodules b/.gitmodules
+index 7554c1e..a3ead27 100644
+--- a/.gitmodules
++++ b/.gitmodules
+@@ -9,7 +9,7 @@
+ 	url = https://github.com/madler/zlib
+ [submodule "submodules/curl-impersonate"]
+ 	path = submodules/curl-impersonate
+-	url = https://github.com/lexiforest/curl-impersonate
++	url = https://github.com/lexiforest/curl-impersonate.git
+ [submodule "submodules/boringssl"]
+ 	path = submodules/boringssl
+ 	url = https://github.com/google/boringssl
+@@ -25,3 +25,6 @@
+ [submodule "submodules/c-ares"]
+ 	path = submodules/c-ares
+ 	url = https://github.com/c-ares/c-ares
++[submodule "submodules/zstd"]
++	path = submodules/zstd
++	url = https://github.com/facebook/zstd
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0e3f7f0..d3f021e 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -26,11 +26,13 @@ set(CURL_USE_BEARSSL OFF)
+ set(CURL_USE_OPENSSL ON)
+ set(USE_NGHTTP2 ON)
+ set(CURL_BROTLI ON)
++set(CURL_ZSTD ON)
++set(USE_ECH ON)
+ set(ENABLE_ARES ON)
+ set(CURL_USE_LIBPSL OFF)
+ set(CURL_DISABLE_ALTSVC ON)
+ set(CURL_DISABLE_CRYPTO_AUTH ON)
+-set(CURL_DISABLE_COOKIES ON)
++set(CURL_DISABLE_COOKIES OFF)
+ set(CURL_DISABLE_HSTS ON)
+ set(CURL_DISABLE_HTTP_AUTH ON)
+ set(CURL_DISABLE_NETRC ON)
+@@ -64,7 +66,7 @@ if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl/.patched")
+ 		COMMAND patch
+ 		--directory=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl
+ 		--strip=1
+-		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/chrome/patches/curl-impersonate.patch
++		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/patches/curl.patch
+ 		COMMAND_ERROR_IS_FATAL ANY
+ 	)
+ 	
+@@ -78,7 +80,7 @@ if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/submodules/boringssl/.patched")
+ 		COMMAND patch
+ 		--directory=${CMAKE_CURRENT_SOURCE_DIR}/submodules/boringssl
+ 		--strip=1
+-		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/chrome/patches/boringssl-old-ciphers.patch
++		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/patches/boringssl.patch
+ 		COMMAND_ERROR_IS_FATAL ANY
+ 	)
+ 	
+@@ -127,6 +129,12 @@ set(BROTLI_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/submodules/brotli/c/include"
+ set(BROTLICOMMON_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}brotlicommon${CMAKE_SHARED_LIBRARY_SUFFIX}")
+ set(BROTLIDEC_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}brotlidec${CMAKE_SHARED_LIBRARY_SUFFIX}")
+ 
++set(ZSTD_INCLUDE_DIR
++	"${CMAKE_CURRENT_SOURCE_DIR}/submodules/zstd/lib"
++)
++
++set(ZSTD_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}zstd${CMAKE_SHARED_LIBRARY_SUFFIX}")
++
+ set(
+ 	CARES_INCLUDE_DIR
+ 	"${CMAKE_CURRENT_SOURCE_DIR}/submodules/c-ares/include"
+@@ -141,17 +149,34 @@ if (ANDROID)
+ 	set(ANDROID_STL "c++_static")
+ endif()
+ 
++# curl 8.22 validates IMPORTED target include dirs at configure time, but the
++# vendored deps only create these paths when they configure -- after curl does.
++file(MAKE_DIRECTORY
++	"${CMAKE_CURRENT_BINARY_DIR}/submodules/zlib"
++	"${CMAKE_CURRENT_BINARY_DIR}/submodules/c-ares"
++	"${CMAKE_CURRENT_BINARY_DIR}/submodules/nghttp2/lib/includes"
++)
++
++# BoringSSL provides ECH, but Kad stages dependency libs after curl configures,
++# so its link-based probe can never succeed here; preseed the result.
++set(HAVE_SSL_SET1_ECH_CONFIG_LIST 1 CACHE INTERNAL "Provided by vendored BoringSSL")
++
+ add_subdirectory(submodules/curl EXCLUDE_FROM_ALL)
+ add_subdirectory(submodules/zlib EXCLUDE_FROM_ALL)
+ add_subdirectory(submodules/boringssl EXCLUDE_FROM_ALL)
+ add_subdirectory(submodules/nghttp2 EXCLUDE_FROM_ALL)
++set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "")
++set(ZSTD_BUILD_TESTS OFF CACHE BOOL "")
++set(ZSTD_BUILD_SHARED ON CACHE BOOL "")
++set(ZSTD_BUILD_STATIC OFF CACHE BOOL "")
+ add_subdirectory(submodules/brotli EXCLUDE_FROM_ALL)
++add_subdirectory(submodules/zstd/build/cmake EXCLUDE_FROM_ALL)
+ add_subdirectory(submodules/c-ares EXCLUDE_FROM_ALL)
+ 
+ file(REMOVE "${OPENSSL_SSL_LIBRARY}")
+ file(REMOVE "${OPENSSL_CRYPTO_LIBRARY}")
+ 
+-foreach(target zlib crypto ssl nghttp2 brotlidec c-ares)
++foreach(target zlib crypto ssl nghttp2 brotlidec c-ares libzstd_shared)
+ 	add_custom_command(
+ 		OUTPUT ${target}
+ 		COMMAND ${CMAKE_COMMAND} --build ./ --target ${target}
+@@ -162,7 +187,7 @@ foreach(target zlib crypto ssl nghttp2 brotlidec c-ares)
+ 	)
+ 	
+ 	add_dependencies(
+-		libcurl
++		libcurl_shared
+ 		"ensure_${target}"
+ 	)
+ endforeach()
+@@ -473,7 +498,7 @@ add_library(
+ )
+ 
+ foreach(property RUNTIME_OUTPUT_DIRECTORY LIBRARY_OUTPUT_DIRECTORY)
+-	foreach(target libcurl zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
++	foreach(target libcurl_shared libzstd_shared zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
+ 		set_target_properties(
+ 			${target}
+ 			PROPERTIES
+@@ -518,7 +543,7 @@ if (KAD_ENABLE_LTO)
+ 	check_ipo_supported(RESULT KAD_HAS_LTO LANGUAGES C)
+ 	
+ 	if (KAD_HAS_LTO)
+-		foreach(target kad bearssl libcurl zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
++		foreach(target kad bearssl libcurl_shared libzstd_shared zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
+ 			set_target_properties(
+ 				${target}
+ 				PROPERTIES
+@@ -528,7 +553,7 @@ if (KAD_ENABLE_LTO)
+ 	endif()
+ endif()
+ 
+-foreach(target libcurl ssl brotlidec)
++foreach(target libcurl_shared libzstd_shared ssl brotlidec)
+ 	if (APPLE)
+ 		foreach(property BUILD_RPATH INSTALL_RPATH)
+ 			set_target_properties(
+@@ -569,10 +594,10 @@ endif()
+ target_link_libraries(
+ 	kad
+ 	bearssl
+-	libcurl
++	libcurl_shared
+ )
+ 
+-foreach(target kad bearssl libcurl zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
++foreach(target kad bearssl libcurl_shared libzstd_shared zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
+ 	install(
+ 		TARGETS ${target}
+ 		RUNTIME DESTINATION bin
+diff --git a/patches/curl-impersonate-migration.patch b/patches/curl-impersonate-migration.patch
+new file mode 100644
+index 0000000..4cde74b
+--- /dev/null
++++ b/patches/curl-impersonate-migration.patch
+@@ -0,0 +1,94 @@
++--- a/CMakeLists.txt
+++++ b/CMakeLists.txt
++@@ -26,6 +26,8 @@
++ set(CURL_USE_OPENSSL ON)
++ set(USE_NGHTTP2 ON)
++ set(CURL_BROTLI ON)
+++set(CURL_ZSTD ON)
+++set(USE_ECH ON)
++ set(ENABLE_ARES ON)
++ set(CURL_USE_LIBPSL OFF)
++ set(CURL_DISABLE_ALTSVC ON)
++@@ -64,7 +66,7 @@
++ 		COMMAND patch
++ 		--directory=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl
++ 		--strip=1
++-		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/chrome/patches/curl-impersonate.patch
+++		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/patches/curl.patch
++ 		COMMAND_ERROR_IS_FATAL ANY
++ 	)
++ 	
++@@ -78,7 +80,7 @@
++ 		COMMAND patch
++ 		--directory=${CMAKE_CURRENT_SOURCE_DIR}/submodules/boringssl
++ 		--strip=1
++-		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/chrome/patches/boringssl-old-ciphers.patch
+++		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/patches/boringssl.patch
++ 		COMMAND_ERROR_IS_FATAL ANY
++ 	)
++ 	
++@@ -127,6 +129,12 @@
++ set(BROTLICOMMON_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}brotlicommon${CMAKE_SHARED_LIBRARY_SUFFIX}")
++ set(BROTLIDEC_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}brotlidec${CMAKE_SHARED_LIBRARY_SUFFIX}")
++ 
+++set(ZSTD_INCLUDE_DIR
+++	"${CMAKE_CURRENT_SOURCE_DIR}/submodules/zstd/lib"
+++)
+++
+++set(ZSTD_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}zstd${CMAKE_SHARED_LIBRARY_SUFFIX}")
+++
++ set(
++ 	CARES_INCLUDE_DIR
++ 	"${CMAKE_CURRENT_SOURCE_DIR}/submodules/c-ares/include"
++@@ -145,13 +153,18 @@
++ add_subdirectory(submodules/zlib EXCLUDE_FROM_ALL)
++ add_subdirectory(submodules/boringssl EXCLUDE_FROM_ALL)
++ add_subdirectory(submodules/nghttp2 EXCLUDE_FROM_ALL)
+++set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "")
+++set(ZSTD_BUILD_TESTS OFF CACHE BOOL "")
+++set(ZSTD_BUILD_SHARED ON CACHE BOOL "")
+++set(ZSTD_BUILD_STATIC OFF CACHE BOOL "")
++ add_subdirectory(submodules/brotli EXCLUDE_FROM_ALL)
+++add_subdirectory(submodules/zstd/build/cmake EXCLUDE_FROM_ALL)
++ add_subdirectory(submodules/c-ares EXCLUDE_FROM_ALL)
++ 
++ file(REMOVE "${OPENSSL_SSL_LIBRARY}")
++ file(REMOVE "${OPENSSL_CRYPTO_LIBRARY}")
++ 
++-foreach(target zlib crypto ssl nghttp2 brotlidec c-ares)
+++foreach(target zlib crypto ssl nghttp2 brotlidec c-ares libzstd_shared)
++ 	add_custom_command(
++ 		OUTPUT ${target}
++ 		COMMAND ${CMAKE_COMMAND} --build ./ --target ${target}
++--- a/src/main.c
+++++ b/src/main.c
++@@ -26,7 +26,7 @@
++ 	#include "stringu.h"
++ #endif
++ 
++-#define KAD_DEFAULT_IMPERSONATE_TARGET "chrome116"
+++#define KAD_DEFAULT_IMPERSONATE_TARGET "chrome136"
++ 
++ static const char KAD_DEFAULT_LISTEN_ADDRESS[] = "127.0.0.1";
++ static const int KAD_DEFAULT_LISTEN_PORT = 4000;
++@@ -48,7 +48,8 @@
++ 	"Sec-Fetch-User",
++ 	"Sec-Fetch-Dest",
++ 	"Accept-Encoding",
++-	"Accept-Language"
+++	"Accept-Language",
+++	"Priority"
++ };
++ 
++ #ifndef KAD_DISABLE_CERTIFICATE_VALIDATION
++--- a/src/program_help.h
+++++ b/src/program_help.h
++@@ -12,7 +12,7 @@
++ 	"  -v, --version    Display the Kad version and exit.\n" \
++ 	"  --host HOST      Bind socket to this host. [default: 127.0.0.1]\n" \
++ 	"  --port PORT      Bind socket to this port. [default: 4000]\n" \
++-	"  --target TARGET  Impersonate this target. [default: chrome116]\n" \
+++	"  --target TARGET  Impersonate this target. [default: chrome136]\n" \
++ 	"\n" \
++ 	"Note, options that take an argument require a equal sign. E.g. --host=HOST\n" \
++ 
+diff --git a/src/main.c b/src/main.c
+index 3ef7596..5150f31 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -26,7 +26,7 @@
+ 	#include "stringu.h"
+ #endif
+ 
+-#define KAD_DEFAULT_IMPERSONATE_TARGET "chrome116"
++#define KAD_DEFAULT_IMPERSONATE_TARGET "chrome136"
+ 
+ static const char KAD_DEFAULT_LISTEN_ADDRESS[] = "127.0.0.1";
+ static const int KAD_DEFAULT_LISTEN_PORT = 4000;
+@@ -48,7 +48,8 @@ static const char* const IMPERSONATE_HEADERS[] = {
+ 	"Sec-Fetch-User",
+ 	"Sec-Fetch-Dest",
+ 	"Accept-Encoding",
+-	"Accept-Language"
++	"Accept-Language",
++	"Priority"
+ };
+ 
+ #ifndef KAD_DISABLE_CERTIFICATE_VALIDATION
+diff --git a/src/program_help.h b/src/program_help.h
+index dc4fc1d..9a5a4a8 100644
+--- a/src/program_help.h
++++ b/src/program_help.h
+@@ -12,7 +12,7 @@ This file is auto-generated. Use the ../tools/program_help.h.py tool to regenera
+ 	"  -v, --version    Display the Kad version and exit.\n" \
+ 	"  --host HOST      Bind socket to this host. [default: 127.0.0.1]\n" \
+ 	"  --port PORT      Bind socket to this port. [default: 4000]\n" \
+-	"  --target TARGET  Impersonate this target. [default: chrome116]\n" \
++	"  --target TARGET  Impersonate this target. [default: chrome136]\n" \
+ 	"\n" \
+ 	"Note, options that take an argument require a equal sign. E.g. --host=HOST\n" \
+ 
+diff --git a/submodules/boringssl b/submodules/boringssl
+index 3a667d1..156c7b7 160000
+--- a/submodules/boringssl
++++ b/submodules/boringssl
+@@ -1 +1 @@
+-Subproject commit 3a667d10e94186fd503966f5638e134fe9fb4080
++Subproject commit 156c7b75ae9b8c3b3f847acf264f17594c3859fb
+diff --git a/submodules/brotli b/submodules/brotli
+index 53947c1..028fb5a 160000
+--- a/submodules/brotli
++++ b/submodules/brotli
+@@ -1 +1 @@
+-Subproject commit 53947c15f57774f34f31c0dc485e5a7f5fd9794c
++Subproject commit 028fb5a23661f123017c060daa546b55cf4bde29
+diff --git a/submodules/c-ares b/submodules/c-ares
+index 7f32623..c7a3138 160000
+--- a/submodules/c-ares
++++ b/submodules/c-ares
+@@ -1 +1 @@
+-Subproject commit 7f3262312f246556d8c1bdd8ccc1844847f42787
++Subproject commit c7a3138dcfe3bb0eaaf10c0c24c36dc66dc790ab
+diff --git a/submodules/curl b/submodules/curl
+index 1561d06..0134682 160000
+--- a/submodules/curl
++++ b/submodules/curl
+@@ -1 +1 @@
+-Subproject commit 1561d0675208854b39066877b140780a965702fa
++Subproject commit 01346829096c61b372692f6dc43ffa778c6caccd
+diff --git a/submodules/curl-impersonate b/submodules/curl-impersonate
+index 845db62..6e8f877 160000
+--- a/submodules/curl-impersonate
++++ b/submodules/curl-impersonate
+@@ -1 +1 @@
+-Subproject commit 845db62e79853081f5b8396b9a8ce34500d80100
++Subproject commit 6e8f87760a4dd96771e96fc9d55440dcd8845243
+diff --git a/submodules/nghttp2 b/submodules/nghttp2
+index 5c1b0f2..8f44147 160000
+--- a/submodules/nghttp2
++++ b/submodules/nghttp2
+@@ -1 +1 @@
+-Subproject commit 5c1b0f261ebffeb67c151943b0f3ffa5c0afca81
++Subproject commit 8f44147c385fb1ed93a6f39911eeb30279bfd2dd
+diff --git a/submodules/zlib b/submodules/zlib
+index ac8f12c..51b7f2a 160000
+--- a/submodules/zlib
++++ b/submodules/zlib
+@@ -1 +1 @@
+-Subproject commit ac8f12c97d1afd9bafa9c710f827d40a407d3266
++Subproject commit 51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf
+diff --git a/submodules/zstd b/submodules/zstd
+new file mode 160000
+index 0000000..f8745da
+--- /dev/null
++++ b/submodules/zstd
+@@ -0,0 +1 @@
++Subproject commit f8745da6ff1ad1e7bab384bd1f9d742439278e99
