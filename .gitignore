@@ -1,2 +1,6 @@
 build/
 etc/
+
+# release artifacts
+kad-v*.tar.gz
+kad-v*-sha256sum.txt
