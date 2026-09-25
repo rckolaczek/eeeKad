@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 
 project(
 	Kad
-	VERSION 0.3.1
+	VERSION 0.3.2
 	DESCRIPTION "Kad is a simple HTTP proxy server that forwards all requests through curl-impersonate"
 	HOMEPAGE_URL "https://github.com/rckolaczek/eeeKad"
 	LANGUAGES C
