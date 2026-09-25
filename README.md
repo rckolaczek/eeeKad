@@ -39,7 +39,7 @@ options:
   -v, --version    Display the Kad version and exit.
   --host HOST      Bind socket to this host. [default: 127.0.0.1]
   --port PORT      Bind socket to this port. [default: 4000]
-  --target TARGET  Impersonate this target. [default: chrome116]
+  --target TARGET  Impersonate this target. [default: chrome136]
 
 Note, options that take an argument require a equal sign. E.g. --host=HOST
 ```
@@ -95,5 +95,5 @@ To circumvent this, you need to disable SSL certificate validation in your HTTP 
 ## Limitations
 
 - Windows is not supported for now ([#1](https://github.com/AmanoTeam/Kad/issues/1))
-- Only supports impersonating Chrome, Edge and Safari
+All browser targets from lexiforest/curl-impersonate v2.2.3 are supported: Chrome (chrome100 through chrome150, incl. Android variants), Safari (safari153 through safari2601, incl. ios), Firefox (firefox133 through firefox147) and Tor (tor145). See submodules/curl-impersonate/browsers.json for the full list. ECH-GREASE is enabled; note chrome145+, chrome146 and firefox147 advertise HTTP/3 fingerprints but Kad currently negotiates HTTP/2 only.
 
