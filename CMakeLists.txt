@@ -32,7 +32,7 @@ set(ENABLE_ARES ON)
 set(CURL_USE_LIBPSL OFF)
 set(CURL_DISABLE_ALTSVC ON)
 set(CURL_DISABLE_CRYPTO_AUTH ON)
-set(CURL_DISABLE_COOKIES ON)
+set(CURL_DISABLE_COOKIES OFF)
 set(CURL_DISABLE_HSTS ON)
 set(CURL_DISABLE_HTTP_AUTH ON)
 set(CURL_DISABLE_NETRC ON)
@@ -149,6 +149,18 @@ if (ANDROID)
 	set(ANDROID_STL "c++_static")
 endif()
 
+# curl 8.22 validates IMPORTED target include dirs at configure time, but the
+# vendored deps only create these paths when they configure -- after curl does.
+file(MAKE_DIRECTORY
+	"${CMAKE_CURRENT_BINARY_DIR}/submodules/zlib"
+	"${CMAKE_CURRENT_BINARY_DIR}/submodules/c-ares"
+	"${CMAKE_CURRENT_BINARY_DIR}/submodules/nghttp2/lib/includes"
+)
+
+# BoringSSL provides ECH, but Kad stages dependency libs after curl configures,
+# so its link-based probe can never succeed here; preseed the result.
+set(HAVE_SSL_SET1_ECH_CONFIG_LIST 1 CACHE INTERNAL "Provided by vendored BoringSSL")
+
 add_subdirectory(submodules/curl EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/zlib EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/boringssl EXCLUDE_FROM_ALL)
@@ -175,7 +187,7 @@ foreach(target zlib crypto ssl nghttp2 brotlidec c-ares libzstd_shared)
 	)
 	
 	add_dependencies(
-		libcurl
+		libcurl_shared
 		"ensure_${target}"
 	)
 endforeach()
@@ -486,7 +498,7 @@ add_library(
 )
 
 foreach(property RUNTIME_OUTPUT_DIRECTORY LIBRARY_OUTPUT_DIRECTORY)
-	foreach(target libcurl zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
+	foreach(target libcurl_shared libzstd_shared zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
 		set_target_properties(
 			${target}
 			PROPERTIES
@@ -531,7 +543,7 @@ if (KAD_ENABLE_LTO)
 	check_ipo_supported(RESULT KAD_HAS_LTO LANGUAGES C)
 	
 	if (KAD_HAS_LTO)
-		foreach(target kad bearssl libcurl zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
+		foreach(target kad bearssl libcurl_shared libzstd_shared zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
 			set_target_properties(
 				${target}
 				PROPERTIES
@@ -541,7 +553,7 @@ if (KAD_ENABLE_LTO)
 	endif()
 endif()
 
-foreach(target libcurl ssl brotlidec)
+foreach(target libcurl_shared libzstd_shared ssl brotlidec)
 	if (APPLE)
 		foreach(property BUILD_RPATH INSTALL_RPATH)
 			set_target_properties(
@@ -582,10 +594,10 @@ endif()
 target_link_libraries(
 	kad
 	bearssl
-	libcurl
+	libcurl_shared
 )
 
-foreach(target kad bearssl libcurl zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
+foreach(target kad bearssl libcurl_shared libzstd_shared zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
 	install(
 		TARGETS ${target}
 		RUNTIME DESTINATION bin
