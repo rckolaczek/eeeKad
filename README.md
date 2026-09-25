@@ -4,15 +4,15 @@ Kad is a simple HTTP proxy server that forwards all requests through curl-impers
 
 ## Installation
 
-You can obtain precompiled binaries from the [releases](https://github.com/AmanoTeam/Kad/releases) page.
+You can obtain precompiled binaries from the [releases](https://github.com/rckolaczek/eeeKad/releases) page.
 
 ## Building
 
 Clone this repository and fetch all submodules
 
 ```bash
-git clone --depth='1' 'https://github.com/AmanoTeam/Kad.git'
-cd Kad
+git clone --depth='1' 'https://github.com/rckolaczek/eeeKad.git'
+cd eeeKad
 git submodule update --init --depth='1'
 ```
 
@@ -94,6 +94,6 @@ To circumvent this, you need to disable SSL certificate validation in your HTTP 
 
 ## Limitations
 
-- Windows is not supported for now ([#1](https://github.com/AmanoTeam/Kad/issues/1))
+- Windows is not supported for now
 All browser targets from lexiforest/curl-impersonate v2.2.3 are supported: Chrome (chrome100 through chrome150, incl. Android variants), Safari (safari153 through safari2601, incl. ios), Firefox (firefox133 through firefox147) and Tor (tor145). See submodules/curl-impersonate/browsers.json for the full list. ECH-GREASE is enabled; note chrome145+, chrome146 and firefox147 advertise HTTP/3 fingerprints but Kad currently negotiates HTTP/2 only.
 
