@@ -1,0 +1,66 @@
+--- a/src/callbacks.c
++++ b/src/callbacks.c
+@@ -102,12 +102,36 @@
+ 	
+ }
+ 
++static ssize_t send_all(const struct transferdata* const data, const char* const buffer, const size_t len) {
++
++	size_t sent = 0;
++
++	while (sent < len) {
++
++		const ssize_t w = (data->is_secure) ? ssl_send(data->context, buffer + sent, len - sent) : send(data->fd, buffer + sent, len - sent, 0);
++
++		if (w < 0 && errno == EINTR) {
++			continue;
++		}
++
++		if (w <= 0) {
++			return -1;
++		}
++
++		sent += (size_t) w;
++
++	}
++
++	return (ssize_t) len;
++
++}
++
+ size_t write_callback(char* ptr, size_t size, size_t nmemb, void* userp) {
+ 	
+ 	struct transferdata* const data = (struct transferdata*) userp;
+ 	const size_t chunk_size = size * nmemb;
+ 	
+-	const ssize_t wsize = (data->is_secure) ? ssl_send(data->context, ptr, chunk_size) : send(data->fd, ptr, chunk_size, 0);
++	const ssize_t wsize = send_all(data, ptr, chunk_size);
+ 	
+ 	if (wsize == -1) {
+ 		return CURL_WRITEFUNC_ERROR;
+@@ -163,7 +187,7 @@
+ 		strcat(line, message);
+ 		strcat(line, CRLF);
+ 		
+-		ssize_t wsize = (data->is_secure) ? ssl_send(data->context, line, line_size) : send(data->fd, line, line_size, 0);
++		ssize_t wsize = send_all(data, line, line_size);
+ 		
+ 		if (wsize == -1) {
+ 			return CURL_WRITEFUNC_ERROR;
+@@ -226,14 +250,14 @@
+ 			strcat(line, header->value);
+ 			strcat(line, CRLF);
+ 			
+-			const ssize_t wsize = (data->is_secure) ? ssl_send(data->context, line, strlen(line)) : send(data->fd, line, strlen(line), 0);
++			const ssize_t wsize = send_all(data, line, strlen(line));
+ 			
+ 			if (wsize == -1) {
+ 				return CURL_WRITEFUNC_ERROR;
+ 			}
+ 		}
+ 		
+-		wsize = (data->is_secure) ? ssl_send(data->context, CRLF, strlen(CRLF)) : send(data->fd, CRLF, strlen(CRLF), 0);
++		wsize = send_all(data, CRLF, strlen(CRLF));
+ 		
+ 		if (wsize == -1) {
+ 			return CURL_WRITEFUNC_ERROR;
