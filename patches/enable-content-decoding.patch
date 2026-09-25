@@ -1,0 +1,17 @@
+diff --git a/src/main.c b/src/main.c
+index 5150f31..70bac4e 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -247,6 +247,12 @@ static int request_handler(void* pointer) {
+ 	if (curl_easy_impersonate(curl, target_impersonate, 1) != CURLE_OK) {
+ 		return KADERR_CURL_SETOPT_FAILURE;
+ 	}
++
++	// curl-impersonate advertises Accept-Encoding as a raw header for fingerprint fidelity,
++	// but libcurl only decompresses when decoding is enabled; Content-Encoding is stripped downstream
++	if (curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "gzip, deflate, br, zstd") != CURLE_OK) {
++		return KADERR_CURL_SETOPT_FAILURE;
++	}
+ 	
+ 	if (curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback_empty) != CURLE_OK) {
+ 		return KADERR_CURL_SETOPT_FAILURE;
